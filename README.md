@@ -607,7 +607,7 @@ Transactions:		        3078 hits
 Availability:		       100 %
 Elapsed time:		       120 secs
 Data transferred:	        0.34 MB
-Response time:		        5.60 secs
+Response time:		        5.60 secs//
 Transaction rate:	       17.15 trans/sec
 Throughput:		        0.01 MB/sec
 Concurrency:		       96.02
@@ -623,3 +623,69 @@ Order서비스의 deployment.yml의 liveness 설정을 tcp socket 방식의 8081
 ![image](https://user-images.githubusercontent.com/20619166/98126463-f8cf7400-1ef8-11eb-9246-89f425031a86.png)
 ![image](https://user-images.githubusercontent.com/20619166/98126483-fd942800-1ef8-11eb-99d9-89481b2c62e4.png)
 ![image](https://user-images.githubusercontent.com/20619166/98126511-0553cc80-1ef9-11eb-9a56-b564c70466d4.png)
+
+
+## Config Map
+```
+Order 서비스에 configmap.yml 파일을 생성한다.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apipayurl
+data:
+  url:  http://payment:8080
+```
+
+```
+Order 서버스의 deployment.yml에 configmap 파일을 참조할 수 있는 값을 추가한다.
+
+          env:
+            - name: payurl
+              valueFrom:
+                configMapKeyRef:
+                  name: apipayurl
+                  key: url
+```
+
+```
+Order 서버스의 apllication.yml에 deployment에 추가된 값을 참조하도록 추가한다.
+
+api:
+  payment:
+    url: ${payurl}
+```
+
+```
+Order 서버스의 PaymentService.java에 외부 값을 보도록 변경한다.
+
+@FeignClient(name="Payment", url="${api.payment.url}")
+public interface PaymentService {
+
+    @RequestMapping(method= RequestMethod.POST, path="/payments")
+    public void payReq(@RequestBody Payment payment);
+
+}
+```
+
+```
+configmap.yml 파일의 url을 임의의 값으로 변경 후 order 서비스의 호출을 확인한다.
+
+data:
+  url:  http://payment:8088
+
+root@labs--2023481703:~/src/bookmarket# http http://order:8080/orders bookId=101 qty=1 customerId=10002
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json;charset=UTF-8
+Date: Wed, 04 Nov 2020 16:17:34 GMT
+transfer-encoding: chunked
+
+{
+    "error": "Internal Server Error", 
+    "message": "Could not commit JPA transaction; nested exception is javax.persistence.RollbackException: Error while committing the transaction", 
+    "path": "/orders", 
+    "status": 500, 
+    "timestamp": "2020-11-04T16:17:34.521+0000"
+}
+
+```
