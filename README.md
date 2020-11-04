@@ -327,9 +327,12 @@ public interface PaymentService {
 # 결제 (Payment) 서비스를 잠시 내려놓음 (ctrl+c)
 
 #주문처리
-http localhost:8081/orders bookId=1 qty=1 customerId=1001   #Fail
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Fail
 
+```
+![image](https://user-images.githubusercontent.com/20619166/98075791-5c817f00-1eb0-11eb-9b8f-863c432ed1ba.png)
+
+```
 #결제서비스 재기동
 cd Payment
 mvn spring-boot:run
@@ -338,6 +341,8 @@ mvn spring-boot:run
 http localhost:8081/orders bookId=1 qty=1 customerId=1001   #Success
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
 ```
+
+![image](https://user-images.githubusercontent.com/20619166/98075797-60ad9c80-1eb0-11eb-9808-ac0d8629677a.png)
 
 - 또한 과도한 요청시에 서비스 장애가 도미노 처럼 벌어질 수 있다. (서킷브레이커, 폴백 처리는 운영단계에서 설명한다.)
 
@@ -352,21 +357,29 @@ http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
 - 이를 위하여 결제이력에 기록을 남긴 후에 곧바로 결제승인이 되었다는 도메인 이벤트를 카프카로 송출한다(Publish)
  
 ```
-package fooddelivery;
+package bookmarket;
+
+import javax.persistence.*;
+import org.springframework.beans.BeanUtils;
+import java.util.List;
 
 @Entity
-@Table(name="결제이력_table")
-public class 결제이력 {
+@Table(name="Payment_table")
+public class Payment {
 
- ...
-    @PrePersist
+    @Id
+    @GeneratedValue(strategy=GenerationType.AUTO)
+    private Long id;
+    private Long orderId;
+    private String status;
+    private Long customerId;
+
+    @PostPersist
     public void onPostPersist(){
         Paid paid = new Paid();
         BeanUtils.copyProperties(this, paid);
         paid.publishAfterCommit();
     }
-
-}
 ```
 - 배송 서비스에서는 결제승인 이벤트에 대해서 이를 수신하여 자신의 정책을 처리하도록 PolicyHandler 를 구현한다:
 
@@ -406,35 +419,24 @@ public class PolicyHandler{
             deliveryRepository.save(delivery);
         }
     }
-    @StreamListener(KafkaProcessor.INPUT)
-    public void wheneverPayCanceled_DeliveryCancel(@Payload PayCanceled payCanceled){
-
-        if(payCanceled.isMe()){
-            System.out.println("##### listener DeliveryCancel : " + payCanceled.toJson());
-
-            List<Delivery> deliveryList = deliveryRepository.findByOrderId(payCanceled.getOrderId());
-            for(Delivery delivery : deliveryList){
-                // view 객체에 이벤트의 eventDirectValue 를 set 함
-                delivery.setStatus("DeliveryCanceled");
-                // view 레파지 토리에 save
-                deliveryRepository.save(delivery);
-            }
-        }
-    }
-
-}
 
 배송서비스는 주문/결제와 완전히 분리되어있으며, 이벤트 수신에 따라 처리되기 때문에, 배송 서비스가 유지보수로 인해 잠시 내려간 상태라도 주문을 받는데 문제가 없다:
 ```
 # 배송서비스 (Delivery) 를 잠시 내려놓음 (ctrl+c)
 
+```
 #주문처리
-http localhost:8081/orders bookId=1 qty=1 customerId=1001   #Success
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
+```
+![image](https://user-images.githubusercontent.com/20619166/98076314-60fa6780-1eb1-11eb-9ff8-24d8d6b68bf4.png)
 
+```
 #주문상태 확인
 http localhost:8081/orders     # 주문상태 안바뀜 확인
+```
+![image](https://user-images.githubusercontent.com/20619166/98076319-648dee80-1eb1-11eb-9338-8655f18ef070.png)
 
+```
 #배송 서비스 기동
 cd Delivery
 mvn spring-boot:run
@@ -442,6 +444,8 @@ mvn spring-boot:run
 #주문상태 확인
 http localhost:8081/orders     # 모든 주문의 상태가 "shipped"으로 확인
 ```
+![image](https://user-images.githubusercontent.com/20619166/98076327-6952a280-1eb1-11eb-9941-61de2eb4aacf.png)
+
 
 
 # 운영
