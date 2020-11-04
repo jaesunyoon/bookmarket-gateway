@@ -421,10 +421,9 @@ public class PolicyHandler{
     }
 
 배송서비스는 주문/결제와 완전히 분리되어있으며, 이벤트 수신에 따라 처리되기 때문에, 배송 서비스가 유지보수로 인해 잠시 내려간 상태라도 주문을 받는데 문제가 없다:
-```
+
 # 배송서비스 (Delivery) 를 잠시 내려놓음 (ctrl+c)
 
-```
 #주문처리
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
 ```
@@ -446,6 +445,19 @@ http localhost:8081/orders     # 주문의 상태가 "shipped"으로 확인
 ```
 ![image](https://user-images.githubusercontent.com/20619166/98076539-c5b5c200-1eb1-11eb-90ce-1e15a4ab2b84.png)
 
+## CQRS
+customerview(mypage)를 통해 구현하였다.
+
+![image](https://user-images.githubusercontent.com/20619166/98079400-0b28be00-1eb7-11eb-995f-4b108765424b.png)
+
+
+
+## gateway
+gateway 프로젝트 내 application.yml
+
+![image](https://user-images.githubusercontent.com/20619166/98079416-11b73580-1eb7-11eb-9bf8-26415996f5cd.png)
+
+![image](https://user-images.githubusercontent.com/20619166/98079409-0e23ae80-1eb7-11eb-8d26-99b942adafd6.png)
 
 # 운영
 
