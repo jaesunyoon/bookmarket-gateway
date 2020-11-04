@@ -250,15 +250,15 @@ public interface OrderRepository extends PagingAndSortingRepository<Order, Long>
 ```
 # Order 서비스의 주문처리
 http localhost:8081/orders bookId=10 qty=20 customerId=1001
-
+```
 ![image](https://user-images.githubusercontent.com/20619166/98074640-293df080-1eae-11eb-819b-f695b448ce24.png)
 
+```
 # Order 서비스의 주문 상태 확인
 http localhost:8081/orders/1
-
+```
 ![image](https://user-images.githubusercontent.com/20619166/98074673-335fef00-1eae-11eb-9deb-dadf3b858b2e.png)
 
-```
 
 ## 폴리글랏 퍼시스턴스
 
