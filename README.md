@@ -442,10 +442,9 @@ cd Delivery
 mvn spring-boot:run
 
 #주문상태 확인
-http localhost:8081/orders     # 모든 주문의 상태가 "shipped"으로 확인
+http localhost:8081/orders     # 주문의 상태가 "shipped"으로 확인
 ```
 ![image](https://user-images.githubusercontent.com/20619166/98076327-6952a280-1eb1-11eb-9941-61de2eb4aacf.png)
-
 
 
 # 운영
