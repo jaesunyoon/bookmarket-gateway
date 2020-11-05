@@ -670,16 +670,23 @@ Concurrency:		       96.02
 
 - seige 로 배포작업 직전에 워크로드를 모니터링 함.
 ```
-siege -c100 -t120S -r10 --content-type "application/json" 'http://order:8080/orders POST {"bookId": "10", "qty": "1", "customerId": "1002"}'
+siege -c100 -t120S -r10 --content-type "application/json" 'http://customerview:8080/mypages POST {"orderId": "10", "qty": "1", "customerId": "1002"}'
 
 ** SIEGE 4.0.5
 ** Preparing 100 concurrent users for battle.
 The server is now under siege...
 
-HTTP/1.1 201     0.68 secs:     207 bytes ==> POST http://localhost:8081/orders
-HTTP/1.1 201     0.68 secs:     207 bytes ==> POST http://localhost:8081/orders
-HTTP/1.1 201     0.70 secs:     207 bytes ==> POST http://localhost:8081/orders
-HTTP/1.1 201     0.70 secs:     207 bytes ==> POST http://localhost:8081/orders
+HTTP/1.1 201     0.00 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.01 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.01 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.01 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.01 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.01 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.01 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.02 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.03 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.00 secs:     269 bytes ==> POST http://customerview:8080/mypages
+HTTP/1.1 201     0.00 secs:     269 bytes ==> POST http://customerview:8080/mypages
 :
 
 ```
@@ -705,17 +712,7 @@ kubectl apply -f kubernetes/deployment.yaml
 ```
 
 - 동일한 시나리오로 재배포 한 후 Availability 확인:
-```
-Transactions:		        3078 hits
-Availability:		       100 %
-Elapsed time:		       120 secs
-Data transferred:	        0.34 MB
-Response time:		        5.60 secs//
-Transaction rate:	       17.15 trans/sec
-Throughput:		        0.01 MB/sec
-Concurrency:		       96.02
-
-```
+![image](https://user-images.githubusercontent.com/20619166/98184977-057eb700-1f4f-11eb-95a3-8372445ae15f.png)
 
 배포기간 동안 Availability 가 변화없기 때문에 무정지 재배포가 성공한 것으로 확인됨.
 
