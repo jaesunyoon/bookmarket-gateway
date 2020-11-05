@@ -477,6 +477,7 @@ customerview(mypage)를 통해 구현하였다.
 ## gateway
 gateway 프로젝트 내 application.yml
 
+```
 server:
   port: 8088
 
@@ -552,7 +553,7 @@ spring:
 server:
   port: 8080
 
-
+```
 
 # 운영
 
