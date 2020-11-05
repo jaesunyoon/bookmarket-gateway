@@ -8,15 +8,15 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: Order
+        - id: order
           uri: http://localhost:8081
           predicates:
             - Path=/orders/** 
-        - id: Payment
+        - id: payment
           uri: http://localhost:8082
           predicates:
             - Path=/payments/** 
-        - id: Delivery
+        - id: delivery
           uri: http://localhost:8083
           predicates:
             - Path=/deliveries/**
@@ -24,6 +24,10 @@ spring:
           uri: http://localhost:8084
           predicates:
             - Path=/mypages/**
+        - id: mileage
+          uri: http://localhost:8085
+          predicates:
+            - Path=/mileages/**
       globalcors:
         corsConfigurations:
           '[/**]':
@@ -59,6 +63,10 @@ spring:
           uri: http://customerview:8080
           predicates:
             - Path=/mypages/**
+        - id: mileage
+          uri: http://mileage:8080
+          predicates:
+            - Path=/mileages/**
       globalcors:
         corsConfigurations:
           '[/**]':
