@@ -11,16 +11,18 @@
   - [분석/설계](#분석설계)
   - [구현:](#구현-)
     - [DDD 의 적용](#ddd-의-적용)
-    - [폴리글랏 퍼시스턴스](#폴리글랏-퍼시스턴스)
-    - [폴리글랏 프로그래밍](#폴리글랏-프로그래밍)
+    - [폴리글랏](#폴리글랏)
     - [동기식 호출 과 Fallback 처리](#동기식-호출-과-Fallback-처리)
     - [비동기식 호출 과 Eventual Consistency](#비동기식-호출-과-Eventual-Consistency)
+    - [CQRS](#CQRS)
+    - [gateway](#gateway)
   - [운영](#운영)
     - [CI/CD 설정](#cicd설정)
     - [동기식 호출 / 서킷 브레이킹 / 장애격리](#동기식-호출-서킷-브레이킹-장애격리)
     - [오토스케일 아웃](#오토스케일-아웃)
     - [무정지 재배포](#무정지-재배포)
-  - [신규 개발 조직의 추가](#신규-개발-조직의-추가)
+    - [Liveness](#Liveness)
+    - [Config Map](#Config-Map)
 
 # 서비스 시나리오
 
@@ -31,9 +33,8 @@
 1. 결제완료되면 주문 상태를 변경한다 ( Pub / Sub Event Dirven )
 1. 배송이 시작되면 주문 상태를 변경한다 ( Pub / Sub Event Dirven )
 1. 고객은 주문을 취소한다.
-1. 주문이 취소되면 결제를 취소하여 고객에게 환불한다. ( Pub / Sub Event Dirven )
+1. 주문이 취소되면 결제를 취소한다. ( Pub / Sub Event Dirven )
 1. 결제가 취소되면 배송을 취소한다. ( Pub / Sub Event Dirven )
-1. 결제, 주문이 취소되면 주문상태를 변경한다. ( Pub / Sub Event Dirven )
 
 비기능적 요구사항
 1. 트랜잭션
@@ -245,30 +246,51 @@ import org.springframework.data.repository.PagingAndSortingRepository;
 public interface OrderRepository extends PagingAndSortingRepository<Order, Long>{
 
 }
+
+
+@Entity
+@Table(name="Delivery_table")
+public class Delivery {
+
+    @Id
+    @GeneratedValue(strategy=GenerationType.AUTO)
+    private Long id;
+    private Long orderId;
+    private Long customerId;
+    private String status;
+
+    @PostPersist
+    public void onPostPersist(){
+        Shipped shipped = new Shipped();
+        BeanUtils.copyProperties(this, shipped);
+        shipped.publishAfterCommit();
+
+
+    }
+    
+    
 ```
 - 적용 후 REST API 의 테스트
 ```
 # Order 서비스의 주문처리
-http localhost:8081/orders bookId=10 qty=20 customerId=1001
+http localhost:8088/orders bookId=10 qty=20 customerId=1001
 ```
-![image](https://user-images.githubusercontent.com/20619166/98074640-293df080-1eae-11eb-819b-f695b448ce24.png)
+![image](https://user-images.githubusercontent.com/24926691/98173682-d4928800-1f36-11eb-83aa-fcdee8c519ca.png)
 
 ```
 # Order 서비스의 주문 상태 확인
-http localhost:8081/orders/1
+http localhost:8088/orders/1
 ```
-![image](https://user-images.githubusercontent.com/20619166/98074673-335fef00-1eae-11eb-9deb-dadf3b858b2e.png)
+![image](https://user-images.githubusercontent.com/24926691/98173905-42d74a80-1f37-11eb-9bb0-32c3cb2930c1.png)
 
 
-## 폴리글랏 퍼시스턴스
+## 폴리글랏
 
 Delivery 서비스에는 H2 DB 대신 HSQL DB를 사용하기로 하였다. 이를 위해 메이븐 설정(pom.xml)상 DB 정보를 HSQLDB를 사용하도록 변경하였다.
 
 ![image](https://user-images.githubusercontent.com/20619166/98075211-4fb05b80-1eaf-11eb-9219-d848180c21bd.png)
 
-![image](https://user-images.githubusercontent.com/20619166/98075210-4f17c500-1eaf-11eb-92d1-3d3731bc4e0c.png)
-
-![image](https://user-images.githubusercontent.com/20619166/98075204-4c1cd480-1eaf-11eb-915f-9f3bce99e834.png)
+![image](https://user-images.githubusercontent.com/24926691/98174421-38698080-1f38-11eb-9d6a-e831322df023.png)
 
 
 ## 동기식 호출 과 Fallback 처리
@@ -327,10 +349,10 @@ public interface PaymentService {
 # 결제 (Payment) 서비스를 잠시 내려놓음 (ctrl+c)
 
 #주문처리
-http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Fail
+http localhost:8081/orders bookId=1 qty=1 customerId=1   #Fail
 
 ```
-![image](https://user-images.githubusercontent.com/20619166/98075791-5c817f00-1eb0-11eb-9b8f-863c432ed1ba.png)
+![image](https://user-images.githubusercontent.com/24926691/98175552-2852a080-1f3a-11eb-9e88-589f9e34d99e.png)
 
 ```
 #결제서비스 재기동
@@ -338,11 +360,11 @@ cd Payment
 mvn spring-boot:run
 
 #주문처리
-http localhost:8081/orders bookId=1 qty=1 customerId=1001   #Success
-http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
+http localhost:8081/orders bookId=1 qty=1 customerId=1   #Success
+http localhost:8081/orders bookId=1 qty=1 customerId=1   #Success
 ```
 
-![image](https://user-images.githubusercontent.com/20619166/98075797-60ad9c80-1eb0-11eb-9808-ac0d8629677a.png)
+![image](https://user-images.githubusercontent.com/24926691/98176069-2f2de300-1f3b-11eb-93f1-92f0d58d78fe.png)
 
 - 또한 과도한 요청시에 서비스 장애가 도미노 처럼 벌어질 수 있다. (서킷브레이커, 폴백 처리는 운영단계에서 설명한다.)
 
@@ -425,15 +447,15 @@ public class PolicyHandler{
 # 배송서비스 (Delivery) 를 잠시 내려놓음 (ctrl+c)
 
 #주문처리
-http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
+http localhost:8081/orders bookId=1 qty=1 customerId=1   #Success
 ```
 ![image](https://user-images.githubusercontent.com/20619166/98076314-60fa6780-1eb1-11eb-9ff8-24d8d6b68bf4.png)
 
 ```
 #주문상태 확인
-http localhost:8081/orders     # 주문상태 안바뀜 확인
+http localhost:8088/orders     # 주문상태 안바뀜 확인
 ```
-![image](https://user-images.githubusercontent.com/20619166/98076319-648dee80-1eb1-11eb-9338-8655f18ef070.png)
+![image](https://user-images.githubusercontent.com/20619166/98076314-60fa6780-1eb1-11eb-9ff8-24d8d6b68bf4.png)
 
 ```
 #배송 서비스 기동
@@ -441,31 +463,110 @@ cd Delivery
 mvn spring-boot:run
 
 #주문상태 확인
-http localhost:8081/orders     # 주문의 상태가 "shipped"으로 확인
+http localhost:8088/orders     # 주문의 상태가 "shipped"으로 확인
 ```
-![image](https://user-images.githubusercontent.com/20619166/98076539-c5b5c200-1eb1-11eb-90ce-1e15a4ab2b84.png)
+![image](https://user-images.githubusercontent.com/24926691/98176663-5507b780-1f3c-11eb-8d3f-af2c0930811b.png)
 
 ## CQRS
 customerview(mypage)를 통해 구현하였다.
 
-![image](https://user-images.githubusercontent.com/20619166/98079400-0b28be00-1eb7-11eb-995f-4b108765424b.png)
+![image](https://user-images.githubusercontent.com/24926691/98176983-fee74400-1f3c-11eb-8417-eefd4c9ce16f.png)
 
 
 
 ## gateway
 gateway 프로젝트 내 application.yml
 
-![image](https://user-images.githubusercontent.com/20619166/98079416-11b73580-1eb7-11eb-9bf8-26415996f5cd.png)
+server:
+  port: 8088
 
-![image](https://user-images.githubusercontent.com/20619166/98079409-0e23ae80-1eb7-11eb-8d26-99b942adafd6.png)
+---
+
+spring:
+  profiles: default
+  cloud:
+    gateway:
+      routes:
+        - id: Order
+          uri: http://localhost:8081
+          predicates:
+            - Path=/orders/** 
+        - id: Payment
+          uri: http://localhost:8082
+          predicates:
+            - Path=/payments/** 
+        - id: Delivery
+          uri: http://localhost:8083
+          predicates:
+            - Path=/deliveries/**
+        - id: customerview
+          uri: http://localhost:8084
+          predicates:
+            - Path=/mypages/**
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins:
+              - "*"
+            allowedMethods:
+              - "*"
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+
+
+---
+
+spring:
+  profiles: docker
+  cloud:
+    gateway:
+      routes:
+        - id: order
+          uri: http://order:8080
+          predicates:
+            - Path=/orders/** 
+        - id: payment
+          uri: http://payment:8080
+          predicates:
+            - Path=/payments/** 
+        - id: delivery
+          uri: http://delivery:8080
+          predicates:
+            - Path=/deliveries/** 
+        - id: customerview
+          uri: http://customerview:8080
+          predicates:
+            - Path=/mypages/**
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins:
+              - "*"
+            allowedMethods:
+              - "*"
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+
+server:
+  port: 8080
+
+
 
 # 운영
 
 ## CI/CD 설정
 
 
-각 구현체들은 각자의 source repository 에 구성되었고, 사용한 CI/CD 플랫폼은 GCP를 사용하였으며, pipeline build script 는 각 프로젝트 폴더 이하에 cloudbuild.yml 에 포함되었다.
+각 구현체들은 각자의 source repository 에 구성되었고, Azure Pipelines 으로 CI/CD 를 구성하였으며, 
+구성은 아래와 같다.
+Github의 소스가 변경되면, CI 후 trigger 에 의해 CD가 이루어진다.
 
+![image](https://user-images.githubusercontent.com/24926691/98177618-63ef6980-1f3e-11eb-8cf1-6244625826c4.png)
+
+
+![image](https://user-images.githubusercontent.com/24926691/98177747-a6b14180-1f3e-11eb-8b59-b4480e41d55a.png)
 
 ## 동기식 호출 / 서킷 브레이킹 / 장애격리
 
@@ -506,17 +607,25 @@ hystrix:
 ```
 
 * 부하테스터 siege 툴을 통한 서킷 브레이커 동작 확인:
+Order 서비스를 통해 Payment 동기처리가 되므로 Order 서비스를 통해 부하 테스트를 한다.
+
 - 동시사용자 100명
-- 10초 동안 실시
+- 120초 동안 실시
+
+root@siege-5c7c46b788-z8jxc:/# siege -c100 -t120S -v --content-type "application/json" 'http://20.196.153.35:8080/orders POST {"bookId": "1", "qty": "1", "customerId":"1"}'
+** SIEGE 4.0.4
+** Preparing 100 concurrent users for battle.
+The server is now under siege...
+
+![image](https://user-images.githubusercontent.com/24926691/98181504-cba9b280-1f46-11eb-89cd-8f8231dbc458.png)
+
+
+
+
 
 ```
-$ siege -c10 -t10S -r10 --content-type "application/json" 'http://localhost:8081/orders POST {"bookId": "10", "qty": "1", "customerId": "1002"}'
-
-
+- 운영시스템은 죽지 않고 지속적으로 CB 에 의하여 적절히 회로가 열림과 닫힘이 벌어지면서 자원을 보호하고 있음을 보여줌. 하지만, 75.5% 가 성공하였고, 31.4%가 실패했다는 것은 고객 사용성에 있어 좋지 않기 때문에 Retry 설정과 동적 Scale out (replica의 자동적 추가,HPA) 을 통하여 시스템을 확장 해주는 후속처리가 필요.
 ```
-- 운영시스템은 죽지 않고 지속적으로 CB 에 의하여 적절히 회로가 열림과 닫힘이 벌어지면서 자원을 보호하고 있음을 보여줌. 하지만, 63.55% 가 성공하였고, 46%가 실패했다는 것은 고객 사용성에 있어 좋지 않기 때문에 Retry 설정과 동적 Scale out (replica의 자동적 추가,HPA) 을 통하여 시스템을 확장 해주는 후속처리가 필요.
-
-- Availability 가 높아진 것을 확인 (siege)
 
 ### 오토스케일 아웃
 앞서 CB 는 시스템을 안정되게 운영할 수 있게 해줬지만 사용자의 요청을 100% 받아들여주지 못했기 때문에 이에 대한 보완책으로 자동화된 확장 기능을 적용하고자 한다. 
@@ -561,7 +670,7 @@ Concurrency:		       96.02
 
 - seige 로 배포작업 직전에 워크로드를 모니터링 함.
 ```
-siege -c100 -t120S -r10 --content-type "application/json" 'http://localhost:8081/orders POST {"bookId": "10", "qty": "1", "customerId": "1002"}'
+siege -c100 -t120S -r10 --content-type "application/json" 'http://order:8080/orders POST {"bookId": "10", "qty": "1", "customerId": "1002"}'
 
 ** SIEGE 4.0.5
 ** Preparing 100 concurrent users for battle.
@@ -581,18 +690,12 @@ kubectl set image ...
 ```
 
 - seige 의 화면으로 넘어가서 Availability 가 100% 미만으로 떨어졌는지 확인
-```
-Transactions:		        3078 hits
-Availability:		       70.45 %
-Elapsed time:		       120 secs
-Data transferred:	        0.34 MB
-Response time:		        5.60 secs
-Transaction rate:	       17.15 trans/sec
-Throughput:		        0.01 MB/sec
-Concurrency:		       96.02
 
-```
-배포기간중 Availability 가 평소 100%에서 70% 대로 떨어지는 것을 확인. 원인은 쿠버네티스가 성급하게 새로 올려진 서비스를 READY 상태로 인식하여 서비스 유입을 진행한 것이기 때문. 이를 막기위해 Readiness Probe 를 설정함:
+![image](https://user-images.githubusercontent.com/20619166/98184054-ca7b8400-1f4c-11eb-95ad-2949072ff912.png)
+
+
+
+배포기간중 Availability 가 평소 100%에서 90% 로 떨어지는 것을 확인. 원인은 쿠버네티스가 성급하게 새로 올려진 서비스를 READY 상태로 인식하여 서비스 유입을 진행한 것이기 때문. 이를 막기위해 Readiness Probe 를 설정함:
 
 ```
 # deployment.yaml 의 readiness probe 의 설정:
